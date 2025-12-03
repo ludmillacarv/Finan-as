@@ -350,8 +350,8 @@ def _parse_args() -> argparse.Namespace:
         nargs="?",
         help="Use _ ou omita para ignorar em transferências",
     )
-    parser_transacao.add_argument("conta_destino_id", type=int, nargs="?")
-    parser_transacao.add_argument("descricao", nargs="?", default=None)
+    parser_transacao.add_argument("conta_destino_id", nargs="?")
+    parser_transacao.add_argument("descricao", nargs="*")
 
     parser_saldo = sub.add_parser("saldo", help="Consultar saldo de uma conta")
     parser_saldo.add_argument("conta_id", type=int)
@@ -360,6 +360,13 @@ def _parse_args() -> argparse.Namespace:
 
     parser_listar = sub.add_parser("listar-transacoes", help="Listar transações")
     parser_listar.add_argument("conta_id", type=int, nargs="?")
+
+    parser_resumo = sub.add_parser("resumo-mes", help="Mostrar resumo de receitas e despesas do mês")
+    parser_resumo.add_argument("ano", type=int)
+    parser_resumo.add_argument("mes", type=int)
+
+    parser_listar_categorias = sub.add_parser("listar-categorias", help="Listar categorias")
+    parser_listar_categorias.add_argument("tipo", nargs="?", choices=sorted(ALLOWED_CATEGORY_TYPES))
 
     sub.add_parser("menu", help="Abrir menu interativo")
 
@@ -393,13 +400,26 @@ def main() -> None:
         if args.categoria_id not in (None, "_"):
             categoria_id = int(args.categoria_id)
 
+        conta_destino_id: Optional[int] = None
+        if args.tipo == "transferencia":
+            if args.conta_destino_id is not None:
+                try:
+                    conta_destino_id = int(args.conta_destino_id)
+                except ValueError as exc:
+                    raise ValueError("Conta de destino deve ser um número inteiro") from exc
+        else:
+            if args.conta_destino_id is not None:
+                args.descricao.insert(0, args.conta_destino_id)
+
+        descricao = " ".join(args.descricao) if args.descricao else None
+
         transacao_id = registrar_transacao(
             args.tipo,
             args.valor,
             args.conta_origem_id,
             categoria_id=categoria_id,
-            conta_destino_id=args.conta_destino_id,
-            descricao=args.descricao,
+            conta_destino_id=conta_destino_id,
+            descricao=descricao,
         )
         print(f"Transação registrada com id {transacao_id}.")
         return
@@ -408,8 +428,14 @@ def main() -> None:
         criar_tabelas()
         seed_basico()
         with conectar() as con:
+            row = con.execute("SELECT nome FROM conta WHERE id = ?", (args.conta_id,)).fetchone()
+            if row is None:
+                raise ValueError("Conta não encontrada")
+
+            nome = row[0]
             saldo = saldo_atual(con, args.conta_id)
-        print(f"Saldo atual: {saldo:.2f}")
+
+        print(f"Saldo atual de '{nome}': R$ {saldo:.2f}")
         return
 
     if args.comando == "listar-contas":
@@ -432,6 +458,22 @@ def main() -> None:
                 f"[{tx['id']}] {tx['tipo']} de {tx['valor']:.2f} em {tx['data']} "
                 f"(conta origem {tx['conta_origem_id']}{destino})"
             )
+        return
+
+    if args.comando == "listar-categorias":
+        criar_tabelas()
+        seed_basico()
+        for categoria in listar_categorias(args.tipo):
+            print(f"[{categoria['id']}] {categoria['nome']} ({categoria['tipo']})")
+        return
+
+    if args.comando == "resumo-mes":
+        criar_tabelas()
+        seed_basico()
+        res = resumo_mes(args.ano, args.mes)
+        print(f"Receitas: R$ {res['receitas']:.2f}")
+        print(f"Despesas: R$ {res['despesas']:.2f}")
+        print(f"Saldo:    R$ {res['saldo']:.2f}")
         return
 
     if args.comando == "menu":

@@ -50,3 +50,20 @@ Há dois modos de uso: menu interativo (sem argumentos) ou linha de comando.
 
 As datas são gravadas automaticamente em formato ISO 8601, mas você pode sobrescrever passando o parâmetro `data` diretamente ao
  chamar `registrar_transacao` via código.
+
+## Interface web (Streamlit)
+Uma interface gráfica simples está disponível em `app.py`. Ela reutiliza o mesmo banco `financas.db` e permite cadastrar contas, categorias e transações via navegador.
+
+1. Instale as dependências:
+   ```bash
+   pip install -r requirements.txt
+   # ou
+   pip install streamlit pandas matplotlib
+   ```
+
+2. Inicie a interface:
+   ```bash
+   streamlit run app.py
+   ```
+
+3. Acesse o endereço exibido pelo Streamlit (por padrão, http://localhost:8501) e use o menu lateral para navegar entre dashboard, lançamentos, contas, categorias e transações.
